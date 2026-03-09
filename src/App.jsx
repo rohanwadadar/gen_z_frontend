@@ -185,7 +185,7 @@ const App = () => {
   const [chatTags, setChatTags] = useState(() => JSON.parse(localStorage.getItem('nexus_tags') || '{}'));
 
   const endRef = useRef(null);
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://gen-z-backend-ujq7.onrender.com';
 
   const showToast = useCallback((msg, type = 'info') => {
     setToast({ msg, type });
