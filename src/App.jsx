@@ -166,7 +166,12 @@ const ScheduleModal = ({ onSend, onClose }) => {
 /* ─── App Root ─────────────────────────────────────────────────────────────── */
 const App = () => {
   const [platform, setPlatform] = useState('desktop');
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('nexus_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
   const [authMode, setAuthMode] = useState('login');
   const [emailInput, setEmailInput] = useState('');
   const [passInput, setPassInput] = useState('');
@@ -193,6 +198,11 @@ const App = () => {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // Persist user and tags
+  useEffect(() => {
+    if (user) localStorage.setItem('nexus_user', JSON.stringify(user));
+    else localStorage.removeItem('nexus_user');
+  }, [user]);
   useEffect(() => { localStorage.setItem('nexus_tags', JSON.stringify(chatTags)); }, [chatTags]);
 
   // Platform detection
