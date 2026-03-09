@@ -319,6 +319,38 @@ const App = () => {
             </form>
           </div>
 
+          {dashboardData.incoming && dashboardData.incoming.length > 0 && (
+            <div className="nx-card" style={{ marginBottom: 20 }}>
+              <p className="section-label" style={{ color: 'var(--blue-600)' }}>Incoming Requests</p>
+              {dashboardData.incoming.map(r => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, border: '1.5px solid var(--blue-200)', background: 'var(--blue-50)', borderRadius: 12, marginBottom: 8 }}>
+                  <Avatar email={r.requester_email} size={36} />
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: 700 }}>{r.requester_email.split('@')[0]}</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-500)' }}>wants to chat</p>
+                  </div>
+                  <button onClick={() => socket.emit('accept_chat_request', { request_id: r.id })} className="btn btn-blue" style={{ padding: '6px 12px', fontSize: 12 }}>Accept</button>
+                  <button onClick={() => socket.emit('reject_chat_request', { request_id: r.id })} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>Decline</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {dashboardData.outgoing && dashboardData.outgoing.length > 0 && (
+            <div className="nx-card" style={{ marginBottom: 20 }}>
+              <p className="section-label">Sent Requests</p>
+              {dashboardData.outgoing.map(r => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, border: '1.5px dashed var(--border)', borderRadius: 12, marginBottom: 8, opacity: 0.7 }}>
+                  <Avatar email={r.recipient_email} size={36} variant="violet" />
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: 700 }}>{r.recipient_email.split('@')[0]}</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-400)' }}>Pending acceptance...</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="nx-card">
             <p className="section-label">Channels</p>
             {dashboardData.accepted.map(c => {
