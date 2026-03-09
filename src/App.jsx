@@ -241,10 +241,12 @@ const App = () => {
   };
 
   const handleSendText = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!inputText.trim()) return;
     socket.emit('send_message', { sender_email: user.email, message_content: inputText, room_id: activeChat.roomId });
     setInputText(''); setShowEmoji(false); setShowSlang(false);
+    const ta = document.getElementById('chat-textarea');
+    if (ta) ta.style.height = 'auto';
   };
 
   const deleteMsg = (id) => socket.emit('delete_message', { message_id: id, room_id: activeChat.roomId, sender_email: user.email });
@@ -375,14 +377,41 @@ const App = () => {
             {showEmoji && <div style={{ position: 'absolute', bottom: 80, left: 16, zIndex: 100 }}><Picker data={data} onEmojiSelect={e => setInputText(p => p + e.native)} theme="light" /></div>}
             {showSlang && <SlangPicker onSelect={t => setInputText(p => p + (p ? ' ' : '') + t)} onClose={() => setShowSlang(false)} />}
 
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={() => { setShowSlang(!showSlang); setShowEmoji(false); setShowDriveInput(false); }} title="Gen Z Dictionary" className="btn btn-ghost" style={{ padding: '0 12px', fontSize: 16 }}>📖</button>
-              <button type="button" onClick={() => { setShowEmoji(!showEmoji); setShowSlang(false); setShowDriveInput(false); }} className="btn btn-ghost" style={{ padding: '0 12px', fontSize: 16 }}>😊</button>
-              <button type="button" onClick={() => { setShowDriveInput(!showDriveInput); setShowEmoji(false); setShowSlang(false); }} className="btn btn-ghost" style={{ padding: '0 12px', fontSize: 16 }}>📁</button>
-              <form onSubmit={handleSendText} style={{ flex: 1, display: 'flex', gap: 8 }}>
-                <input type="text" className="nx-input" value={inputText} onChange={e => setInputText(e.target.value)} onFocus={() => socket.emit('typing_start', { room_id: activeChat.roomId, email: user.email })} onBlur={() => socket.emit('typing_stop', { room_id: activeChat.roomId })} placeholder="Spill the tea..." />
-                <button type="submit" className="btn btn-blue" style={{ flexShrink: 0 }}>Drop text</button>
-              </form>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', width: '100%' }}>
+              <div style={{ display: 'flex', background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: '1.5rem', flex: 1, padding: '4px 8px', alignItems: 'flex-end', minHeight: 48, boxShadow: 'var(--shadow-sm)' }}>
+                <button type="button" onClick={() => { setShowEmoji(!showEmoji); setShowSlang(false); setShowDriveInput(false); }} style={{ background: 'none', border: 'none', padding: '8px', fontSize: 20, cursor: 'pointer', flexShrink: 0, opacity: 0.8 }}>😊</button>
+                <textarea
+                  id="chat-textarea"
+                  rows={1}
+                  value={inputText}
+                  onChange={e => {
+                    setInputText(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                  }}
+                  onFocus={() => socket.emit('typing_start', { room_id: activeChat.roomId, email: user.email })}
+                  onBlur={() => socket.emit('typing_stop', { room_id: activeChat.roomId })}
+                  placeholder="Spill the tea..."
+                  style={{ flex: 1, border: 'none', background: 'transparent', resize: 'none', outline: 'none', padding: '10px 4px', fontSize: 16, maxHeight: 120, minHeight: 24, lineHeight: '1.4', fontFamily: 'inherit' }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendText();
+                    }
+                  }}
+                />
+                <button type="button" onClick={() => { setShowSlang(!showSlang); setShowEmoji(false); setShowDriveInput(false); }} title="Gen Z Dictionary" style={{ background: 'none', border: 'none', padding: '8px 4px', fontSize: 18, cursor: 'pointer', flexShrink: 0, opacity: 0.8 }}>📖</button>
+                <button type="button" onClick={() => { setShowDriveInput(!showDriveInput); setShowEmoji(false); setShowSlang(false); }} style={{ background: 'none', border: 'none', padding: '8px 4px', fontSize: 18, cursor: 'pointer', flexShrink: 0, opacity: 0.8 }}>📁</button>
+              </div>
+
+              <button
+                onClick={() => handleSendText()}
+                disabled={!inputText.trim()}
+                type="button"
+                style={{ width: 44, height: 44, borderRadius: '50%', background: inputText.trim() ? 'var(--blue-500)' : 'var(--text-300)', color: '#fff', border: 'none', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: inputText.trim() ? 'pointer' : 'default', transition: 'all 0.2s', boxShadow: inputText.trim() ? '0 4px 12px rgba(59, 130, 246, 0.3)' : 'none', marginBottom: 2 }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: 3 }}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+              </button>
             </div>
           </footer>
         </div>
