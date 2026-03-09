@@ -351,3 +351,126 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
+/* --- Mobile / OS Specific Styles & Responsiveness --- */
+
+/* iOS optimization */
+.ios {
+  --radius-md: 1.5rem;
+  --radius-lg: 2rem;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.ios .btn {
+  border-radius: 999px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.ios .nx-input {
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.ios .nx-card {
+  border-radius: 1.5rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+.ios .dash-header-logo h2 {
+  font-family: var(--font-sans);
+}
+
+/* Android optimization */
+.android {
+  --radius-md: 0.25rem;
+  --radius-lg: 0.5rem;
+  --font-sans: Roboto, "Helvetica Neue", sans-serif;
+}
+
+.android .btn {
+  border-radius: 0.35rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.android .btn:active {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transform: scale(0.99);
+}
+
+.android .nx-input {
+  border-radius: 0.5rem;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  background: var(--surface);
+}
+
+.android .nx-input:focus {
+  border-bottom-color: var(--blue-500);
+  box-shadow: none;
+}
+
+.android .nx-card {
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.1);
+  border: none;
+}
+
+/* General Mobile overrides */
+.mobile .btn,
+.android .btn,
+.ios .btn {
+  padding: 1rem 1.75rem;
+  font-size: 1.05rem;
+}
+
+.mobile .nx-input,
+.android .nx-input,
+.ios .nx-input {
+  padding: 1rem 1.25rem;
+  font-size: 1.05rem;
+}
+
+/* Responsive constraints for all */
+@media (max-width: 600px) {
+  .app-layout-login {
+    flex-direction: column !important;
+  }
+
+  .app-layout-login .grad-hero-blue,
+  .app-layout-login .grad-hero-violet {
+    flex: none !important;
+    height: 35vh;
+    border-bottom-left-radius: 1.5rem;
+    border-bottom-right-radius: 1.5rem;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+  }
+
+  .app-layout-login .login-form-container {
+    flex: 1 !important;
+    align-items: flex-start !important;
+    padding-top: 2rem;
+  }
+
+  .app-layout-login form {
+    width: 90% !important;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+
+  .side-text-left,
+  .side-text-right {
+    display: none;
+    /* Hide sideways text on mobile */
+  }
+
+  .dash-container {
+    padding: 16px !important;
+    margin: 10px auto !important;
+  }
+}

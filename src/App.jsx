@@ -165,6 +165,7 @@ const ScheduleModal = ({ onSend, onClose }) => {
 
 /* ─── App Root ─────────────────────────────────────────────────────────────── */
 const App = () => {
+  const [platform, setPlatform] = useState('desktop');
   const [user, setUser] = useState(null);
   const [authMode, setAuthMode] = useState('login');
   const [emailInput, setEmailInput] = useState('');
@@ -193,6 +194,15 @@ const App = () => {
   }, []);
 
   useEffect(() => { localStorage.setItem('nexus_tags', JSON.stringify(chatTags)); }, [chatTags]);
+
+  // Platform detection
+  useEffect(() => {
+    const ua = navigator.userAgent || navigator.vendor || window.opera;
+    if (/android/i.test(ua)) setPlatform('android');
+    else if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) setPlatform('ios');
+    else if (/mobile/i.test(ua)) setPlatform('mobile');
+    else setPlatform('desktop');
+  }, []);
 
   // Socket setup
   useEffect(() => {
@@ -250,13 +260,13 @@ const App = () => {
   };
 
   if (!user) return (
-    <div style={{ height: '100vh', display: 'flex' }}>
+    <div className={`app-layout-login ${platform}`} style={{ height: '100vh', display: 'flex' }}>
       <Toast toast={toast} />
       <div className={authMode === 'login' ? 'grad-hero-blue' : 'grad-hero-violet'} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-        <h1 style={{ fontWeight: 900, fontSize: 56, letterSpacing: '-0.05em' }}>✨ z-talk ✨</h1>
+        <h1 style={{ fontWeight: 900, fontSize: 56, letterSpacing: '-0.05em', textAlign: 'center' }}>✨ z-talk ✨</h1>
         <p style={{ fontWeight: 700, fontSize: 18, marginTop: 12, opacity: 0.9 }}>{authMode === 'login' ? 'enter the vibe 🚪' : 'join the squad 🚀'}</p>
       </div>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
+      <div className="login-form-container" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
         <form onSubmit={handleAuth} style={{ width: 320 }}>
           <h2 style={{ marginBottom: 24, fontSize: 28, fontWeight: 900 }}>{authMode === 'login' ? 'Wassup 👋' : 'New Here? 🌟'}</h2>
           <input type="email" placeholder="Email" className="nx-input" style={{ marginBottom: 12 }} required value={emailInput} onChange={e => setEmailInput(e.target.value)} />
@@ -271,7 +281,7 @@ const App = () => {
   );
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+    <div className={`app-container ${platform}`} style={{ height: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
       <Toast toast={toast} />
       {showSchedule && <ScheduleModal onSend={d => socket.emit('send_message', { sender_email: user.email, message_content: encodeMeeting(d), room_id: activeChat.roomId })} onClose={() => setShowSchedule(false)} />}
 
@@ -284,7 +294,7 @@ const App = () => {
       )}
 
       {!activeChat ? (
-        <div style={{ maxWidth: 500, margin: '40px auto', width: '100%', padding: 20, position: 'relative', zIndex: 10 }}>
+        <div className="dash-container" style={{ maxWidth: 500, margin: '40px auto', width: '100%', padding: 20, position: 'relative', zIndex: 10 }}>
           <div className="dash-header-logo anim-fade-up">
             <h2>z-talk</h2>
             <p>the main character energy hub</p>
