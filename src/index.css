@@ -73,6 +73,8 @@ html,
 body,
 #root {
   height: 100%;
+  /* Use dynamic viewport — respects Android nav bar + iOS notch */
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -252,6 +254,8 @@ body {
 .app-root {
   width: 100%;
   height: 100vh;
+  height: 100dvh;
+  /* Android/iOS: excludes nav bar & browser chrome */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -893,6 +897,8 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
+  /* fills exact visible area, excludes Android nav */
   overflow: hidden;
   position: relative;
 }
@@ -1253,9 +1259,11 @@ body {
   color: var(--text-500);
 }
 
-/* Chat Footer */
+/* Chat Footer — safe area keeps it above Android nav bar & iOS home indicator */
 .chat-footer {
   padding: 8px 12px 12px;
+  /* Push above phone navigation bar */
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
   background: var(--footer-bg);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--border);

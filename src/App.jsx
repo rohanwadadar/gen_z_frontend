@@ -459,11 +459,12 @@ const App = () => {
   const [myStatus, setMyStatus] = useState(() => { try { return JSON.parse(localStorage.getItem('nexus_status')); } catch { return null; } });
   const [showMoodPicker, setShowMoodPicker] = useState(false);
   const [chatTags, setChatTags] = useState(() => JSON.parse(localStorage.getItem('nexus_tags') || '{}'));
-  const [readBy, setReadBy] = useState(false);         // peer has seen messages
-  const [peerInRoom, setPeerInRoom] = useState(false);  // peer is actively in this room (delivered)
-  const [showFunPanel, setShowFunPanel] = useState(false); // funny features panel
-  const [ghostWarning, setGhostWarning] = useState(false); // ghost animation
-  const [showShare, setShowShare] = useState(false);    // share modal
+  const [readBy, setReadBy] = useState(false);
+  const [peerInRoom, setPeerInRoom] = useState(false);
+  const [showFunPanel, setShowFunPanel] = useState(false);
+  const [ghostWarning, setGhostWarning] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [appearOffline, setAppearOffline] = useState(false); // user appears offline to peers
 
   const endRef = useRef(null);
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://gen-z-backend-ujq7.onrender.com';
@@ -661,9 +662,14 @@ const App = () => {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                   <div style={{ position: 'relative' }}>
                     <button onClick={() => setShowMoodPicker(v => !v)} className="dash-user-chip">
-                      <Avatar email={user.email} size={28} status={myStatus} />
+                      <Avatar email={user.email} size={28} status={myStatus} online={!appearOffline} />
                       <span>{user.email.split('@')[0]}</span>
-                      {myStatus && <span>{myStatus.emoji} {myStatus.text}</span>}
+                      {appearOffline
+                        ? <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 800 }}>⚫ Offline</span>
+                        : myStatus
+                          ? <span>{myStatus.emoji} {myStatus.text}</span>
+                          : <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 800 }}>🟢 Online</span>
+                      }
                     </button>
                     {showMoodPicker && <MoodPicker current={myStatus} onSet={s => { setMyStatus(s); socket.emit('set_status', { email: user.email, ...s }); }} onClear={() => { setMyStatus(null); socket.emit('set_status', { email: user.email, emoji: null, text: null }); }} onClose={() => setShowMoodPicker(false)} />}
                   </div>
@@ -674,6 +680,26 @@ const App = () => {
                   {/* DND toggle */}
                   <button onClick={() => { setDnd(d => !d); showToast(dnd ? 'Notifications on 🔔' : 'Do Not Disturb 🔕', 'info'); }} className="icon-ctrl-btn" title="Do Not Disturb">
                     {dnd ? '🔕' : '🔔'}
+                  </button>
+                  {/* Appear Offline toggle */}
+                  <button
+                    onClick={() => {
+                      const next = !appearOffline;
+                      setAppearOffline(next);
+                      if (next) {
+                        socket.emit('appear_offline', { email: user.email });
+                        showToast('You appear offline to peers 👻', 'info');
+                      } else {
+                        socket.emit('appear_online', { email: user.email });
+                        showToast('You\'re back online 🟢', 'info');
+                      }
+                      sounds.pop();
+                    }}
+                    className="icon-ctrl-btn"
+                    title={appearOffline ? 'Appear Online' : 'Appear Offline'}
+                    style={{ border: appearOffline ? '2px solid #ef4444' : undefined }}
+                  >
+                    {appearOffline ? '⚫️' : '🟢'}
                   </button>
                   {/* Share */}
                   <button onClick={() => setShowShare(true)} className="icon-ctrl-btn" title="Share z-chatt">🚀</button>
