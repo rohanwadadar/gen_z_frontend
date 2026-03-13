@@ -205,6 +205,37 @@ const ScheduleModal = ({ onSend, onClose }) => {
   );
 };
 
+/* ─── Create Group Modal ─────────────────────────────────────────────────── */
+const CreateGroupModal = ({ onSendMessage, onClose, groupName, setGroupName }) => {
+  return (
+    <div className="modal-backdrop">
+      <div className="modal-card anim-scale-in">
+        <h3 style={{ marginBottom: 16, fontWeight: 800 }}>Create New Squad 🤝</h3>
+        <label className="section-label">Group Name</label>
+        <input
+          type="text"
+          className="nx-input"
+          style={{ marginBottom: 20 }}
+          value={groupName}
+          onChange={e => setGroupName(e.target.value)}
+          placeholder="Manifesting Wealth 💸"
+          autoFocus
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            disabled={!groupName.trim()}
+            onClick={() => onSendMessage(groupName)}
+            className="btn btn-violet"
+            style={{ flex: 1 }}
+          >
+            Create fr ✨
+          </button>
+          <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1 }}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 /* ─── Message Reactions Row ───────────────────────────────────────────────── */
 const QUICK_REACT = ['❤️', '😂', '🔥', '💀', '👑', '🥶'];
 const ReactionsRow = ({ reactions, onReact, myEmail, reactions_by }) => {
@@ -233,7 +264,7 @@ const ReplyBar = ({ replyTo, onCancel }) => (
 
 /* ─── Message Bubble with Swipe-to-Reply ─────────────────────────────────── */
 const EMOJI_REACTIONS = QUICK_REACT;
-const MessageBubble = ({ m, isMe, onDelete, onReact, onReply, allMessages, isLast, readStatus }) => {
+const MessageBubble = ({ m, isMe, onDelete, onReact, onReply, allMessages, isLast, readStatus, isGroup }) => {
   const [showDelete, setShowDelete] = useState(false);
   const [swipeX, setSwipeX] = useState(0);
   const touchStartX = useRef(null);
@@ -310,6 +341,12 @@ const MessageBubble = ({ m, isMe, onDelete, onReact, onReply, allMessages, isLas
         <div className={isMe ? 'bubble-me' : 'bubble-them'}
           onClick={() => isMe && setShowDelete(d => !d)}
           onContextMenu={e => { e.preventDefault(); onReply(m); }}>
+          {!isMe && isGroup && (
+            <p style={{ fontWeight: 800, fontSize: 10, color: 'var(--violet-600)', marginBottom: 4, display: 'block' }}>
+              {m.sender_email.split('@')[0]}
+            </p>
+          )}
+
           {mtg && <MeetingCard meeting={mtg} />}
           {isImg && <img src={m.message_content.slice(7)} alt="shared" style={{ maxWidth: 200, borderRadius: 8 }} />}
           {isGame && gameResult && (
@@ -439,7 +476,9 @@ const App = () => {
   const [passInput, setPassInput] = useState('');
   const [toasts, setToasts] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
-  const [dashboardData, setDashboardData] = useState({ incoming: [], outgoing: [], accepted: [] });
+  const [dashboardData, setDashboardData] = useState({ incoming: [], outgoing: [], accepted: [], joinedGroups: [] });
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [groupNameInput, setGroupNameInput] = useState('');
   const [onlineMap, setOnlineMap] = useState({});     // peer email → { online, lastSeen, status }
   const [peerStatus, setPeerStatus] = useState(null); // current chat peer status
   const [messages, setMessages] = useState([]);
@@ -491,8 +530,20 @@ const App = () => {
     socket.emit('user_online', { email: user.email });
 
     socket.on('dashboard_data', d => {
-      setDashboardData({ incoming: d.incomingRequests, outgoing: d.outgoingRequests, accepted: d.acceptedChats });
+      setDashboardData({ incoming: d.incomingRequests, outgoing: d.outgoingRequests, accepted: d.acceptedChats, joinedGroups: d.joinedGroups || [] });
       setOnlineMap(d.onlineMap || {});
+    });
+    socket.on('joined_groups_update', groups => {
+      setDashboardData(p => ({ ...p, joinedGroups: groups }));
+    });
+    socket.on('group_invite', ({ group, inviter_email }) => {
+      showToast(`${inviter_email.split('@')[0]} invited you to ${group.name}!`, 'notif');
+      sounds.notification();
+    });
+    socket.on('group_created', ({ id, name }) => {
+      showToast(`Group "${name}" created! 🥂`, 'notif');
+      setShowCreateGroup(false);
+      setGroupNameInput('');
     });
     socket.on('incoming_chat_request', r => {
       setDashboardData(p => ({ ...p, incoming: [r, ...p.incoming] }));
@@ -643,6 +694,14 @@ const App = () => {
       <Toast toasts={toasts} />
       {showSchedule && activeChat && <ScheduleModal onSend={d => { socket.emit('send_message', { sender_email: user.email, message_content: encodeMeeting(d), room_id: activeChat.roomId }); sounds.send(); }} onClose={() => setShowSchedule(false)} />}
       {showShare && <ShareModal onClose={() => setShowShare(false)} />}
+      {showCreateGroup && (
+        <CreateGroupModal
+          groupName={groupNameInput}
+          setGroupName={setGroupNameInput}
+          onSendMessage={(name) => { socket.emit('create_group', { name, created_by: user.email }); sounds.send(); }}
+          onClose={() => setShowCreateGroup(false)}
+        />
+      )}
 
       {!activeChat ? (
         /* ── DASHBOARD ─────────────────────────────────────────────────── */
@@ -744,6 +803,27 @@ const App = () => {
                 </div>
               )}
 
+              {/* Squads / Groups */}
+              <div className="dash-card">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <p className="section-label">Your Squads ✨ ({dashboardData.joinedGroups?.length || 0})</p>
+                  <button onClick={() => setShowCreateGroup(true)} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 11 }}>+ Create</button>
+                </div>
+                {dashboardData.joinedGroups?.length === 0 && <div className="channels-empty"><p>No squads yet. Create one! 🤝</p></div>}
+                {dashboardData.joinedGroups?.map(g => (
+                  <div key={g.id} className="channel-item">
+                    <div className="channel-click" onClick={() => { setActiveChat({ roomId: g.id, name: g.name, isGroup: true }); socket.emit('join_room', { email: user.email, room_id: g.id }); sounds.pop(); }}>
+                      <Avatar email={g.name} size={40} variant="gold" />
+                      <div className="channel-info">
+                        <p className="channel-name">{g.name}</p>
+                        <p style={{ fontSize: 11, color: 'var(--text-400)' }}>Squad</p>
+                      </div>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-300)', marginLeft: 'auto', flexShrink: 0 }}><path d="m9 18 6-6-6-6" /></svg>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               {/* Channels */}
               <div className="dash-card">
                 <p className="section-label">Channels {dashboardData.accepted?.length > 0 && `(${dashboardData.accepted.length})`}</p>
@@ -785,11 +865,34 @@ const App = () => {
             <button onClick={() => { setActiveChat(null); setMessages([]); setShowGames(false); setReplyTo(null); setShowSearch(false); setSearchQuery(''); }} className="back-btn">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5m7-7-7 7 7 7" /></svg>
             </button>
-            <Avatar email={activeChat.peerEmail} size={38} online={peerStatus?.online} status={peerStatus?.status} />
+            <Avatar
+              email={activeChat.isGroup ? activeChat.name : activeChat.peerEmail}
+              size={38}
+              variant={activeChat.isGroup ? 'gold' : 'blue'}
+              online={!activeChat.isGroup ? peerStatus?.online : undefined}
+              status={!activeChat.isGroup ? peerStatus?.status : undefined}
+            />
             <div className="chat-header-info" style={{ flex: 1, minWidth: 0 }}>
-              <p className="chat-peer-name">{activeChat.peerEmail.split('@')[0]}</p>
-              <StatusLabel online={peerStatus?.online} lastSeen={peerStatus?.lastSeen} status={peerStatus?.status} />
+              <p className="chat-peer-name">{activeChat.isGroup ? activeChat.name : activeChat.peerEmail.split('@')[0]}</p>
+              {activeChat.isGroup ? (
+                <p style={{ fontSize: 11, color: 'var(--text-400)', fontWeight: 700 }}>Squad Chat 🤝</p>
+              ) : (
+                <StatusLabel online={peerStatus?.online} lastSeen={peerStatus?.lastSeen} status={peerStatus?.status} />
+              )}
             </div>
+            {activeChat.isGroup && (
+              <button
+                onClick={() => {
+                  const email = prompt("Enter peer email to invite:");
+                  if (email) socket.emit('invite_to_group', { group_id: activeChat.roomId, user_email: email, inviter_email: user.email });
+                }}
+                className="icon-ctrl-btn"
+                title="Invite to Squad"
+              >
+                ➕
+              </button>
+            )}
+
             <button onClick={() => { setShowSearch(s => !s); setSearchQuery(''); }} className="icon-ctrl-btn" title="Search messages">🔍</button>
             <button onClick={() => setDarkMode(d => !d)} className="icon-ctrl-btn" title="Toggle theme">{darkMode ? '☀️' : '🌙'}</button>
             <button onClick={() => setShowSchedule(true)} className="btn btn-gold" style={{ padding: '6px 12px', fontSize: 12 }}>📅</button>
@@ -836,6 +939,7 @@ const App = () => {
                   allMessages={messages}
                   isLast={isLastSentByMe}
                   readStatus={readStatus}
+                  isGroup={activeChat.isGroup}
                 />
               );
             })}
