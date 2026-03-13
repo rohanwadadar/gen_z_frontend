@@ -20,6 +20,12 @@ const parseMeeting = (c) => { if (!c?.startsWith('__MTG__')) return null; try { 
 const isImgMsg = (c) => c?.startsWith('__IMG__');
 const isGameMsg = (c) => c?.startsWith('__GAME__');
 
+const getUserColor = (email) => {
+  const c = ['#dc2626', '#ea580c', '#65a30d', '#059669', '#0891b2', '#2563eb', '#4f46e5', '#7c3aed', '#c026d3', '#e11d48'];
+  let h = 0; for (let i = 0; i < email.length; i++) h = email.charCodeAt(i) + ((h << 5) - h);
+  return c[Math.abs(h) % c.length];
+};
+
 /* ─── Notification helpers ────────────────────────────────────────────────── */
 const requestNotifPermission = () => { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); };
 const sendBrowserNotif = (title, body) => { if ('Notification' in window && Notification.permission === 'granted') new Notification(title, { body, icon: '/favicon.ico' }); };
@@ -236,6 +242,43 @@ const CreateGroupModal = ({ onSendMessage, onClose, groupName, setGroupName }) =
     </div>
   );
 };
+
+/* ─── Invite to Group Modal ────────────────────────────────────────────────── */
+const InviteToGroupModal = ({ acceptedChats, userEmail, onlineMap, onInvite, onClose }) => {
+  const friends = acceptedChats.map(c => c.requester_email === userEmail ? c.recipient_email : c.requester_email);
+  return (
+    <div className="modal-backdrop">
+      <div className="modal-card anim-scale-in" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '20px 20px 10px' }}>
+          <h3 style={{ marginBottom: 4, fontWeight: 800 }}>Invite to Squad ➕</h3>
+          <p style={{ fontSize: 13, color: 'var(--text-400)', marginBottom: 16 }}>Select a friend to invite</p>
+        </div>
+        {friends.length === 0 ? (
+          <div style={{ padding: 20, textAlign: 'center' }}><p style={{ fontSize: 13, color: 'var(--text-400)' }}>You have no friends yet! 🥲</p></div>
+        ) : (
+          <div style={{ maxHeight: 300, overflowY: 'auto', padding: '0 20px 20px' }}>
+            {friends.map(email => {
+              const info = onlineMap[email] || {};
+              return (
+                <div key={email} onClick={() => onInvite(email)} style={{ display: 'flex', alignItems: 'center', padding: 10, borderRadius: 12, cursor: 'pointer', marginBottom: 6, border: '1px solid var(--border)', background: 'var(--surface)', transition: 'transform 0.1s' }} onMouseDown={e => e.currentTarget.style.transform = 'scale(0.98)'} onMouseUp={e => e.currentTarget.style.transform = 'none'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
+                  <Avatar email={email} size={36} online={info.online} status={info.status} />
+                  <div style={{ marginLeft: 12, flex: 1, overflow: 'hidden' }}>
+                    <p style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis' }}>{email.split('@')[0]}</p>
+                    <StatusLabel online={info.online} lastSeen={info.lastSeen} status={info.status} />
+                  </div>
+                  <button className="btn btn-blue" style={{ padding: '4px 12px', fontSize: 11, borderRadius: 20, flexShrink: 0 }}>Invite</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div style={{ padding: '10px 20px 20px' }}>
+          <button onClick={onClose} className="btn btn-ghost" style={{ width: '100%' }}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 /* ─── Message Reactions Row ───────────────────────────────────────────────── */
 const QUICK_REACT = ['❤️', '😂', '🔥', '💀', '👑', '🥶'];
 const ReactionsRow = ({ reactions, onReact, myEmail, reactions_by }) => {
@@ -342,7 +385,7 @@ const MessageBubble = ({ m, isMe, onDelete, onReact, onReply, allMessages, isLas
           onClick={() => isMe && setShowDelete(d => !d)}
           onContextMenu={e => { e.preventDefault(); onReply(m); }}>
           {!isMe && isGroup && (
-            <p style={{ fontWeight: 800, fontSize: 10, color: 'var(--violet-600)', marginBottom: 4, display: 'block' }}>
+            <p style={{ fontWeight: 800, fontSize: 11, color: getUserColor(m.sender_email), marginBottom: 4, display: 'block' }}>
               {m.sender_email.split('@')[0]}
             </p>
           )}
@@ -478,6 +521,7 @@ const App = () => {
   const [activeChat, setActiveChat] = useState(null);
   const [dashboardData, setDashboardData] = useState({ incoming: [], outgoing: [], accepted: [], joinedGroups: [] });
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showInviteGroup, setShowInviteGroup] = useState(false);
   const [groupNameInput, setGroupNameInput] = useState('');
   const [onlineMap, setOnlineMap] = useState({});     // peer email → { online, lastSeen, status }
   const [peerStatus, setPeerStatus] = useState(null); // current chat peer status
@@ -702,6 +746,20 @@ const App = () => {
           onClose={() => setShowCreateGroup(false)}
         />
       )}
+      {showInviteGroup && (
+        <InviteToGroupModal
+          acceptedChats={dashboardData.accepted}
+          userEmail={user.email}
+          onlineMap={onlineMap}
+          onInvite={(email) => {
+            socket.emit('invite_to_group', { group_id: activeChat.roomId, user_email: email, inviter_email: user.email });
+            setShowInviteGroup(false);
+            sounds.send();
+            showToast(`Invited ${email.split('@')[0]} to the squad! ✨`, 'notif');
+          }}
+          onClose={() => setShowInviteGroup(false)}
+        />
+      )}
 
       {!activeChat ? (
         /* ── DASHBOARD ─────────────────────────────────────────────────── */
@@ -882,10 +940,7 @@ const App = () => {
             </div>
             {activeChat.isGroup && (
               <button
-                onClick={() => {
-                  const email = prompt("Enter peer email to invite:");
-                  if (email) socket.emit('invite_to_group', { group_id: activeChat.roomId, user_email: email, inviter_email: user.email });
-                }}
+                onClick={() => setShowInviteGroup(true)}
                 className="icon-ctrl-btn"
                 title="Invite to Squad"
               >
