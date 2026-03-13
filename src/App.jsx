@@ -520,6 +520,7 @@ const App = () => {
   const [toasts, setToasts] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [dashboardData, setDashboardData] = useState({ incoming: [], outgoing: [], accepted: [], joinedGroups: [] });
+  const [latestMessages, setLatestMessages] = useState({}); // room_id -> { text, time, unread }
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showInviteGroup, setShowInviteGroup] = useState(false);
   const [groupNameInput, setGroupNameInput] = useState('');
@@ -550,6 +551,10 @@ const App = () => {
   const [appearOffline, setAppearOffline] = useState(false); // user appears offline to peers
 
   const endRef = useRef(null);
+  const activeChatRef = useRef(null);
+
+  useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
+
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://gen-z-backend-ujq7.onrender.com';
 
   // Apply theme on dark mode change
@@ -576,6 +581,11 @@ const App = () => {
     socket.on('dashboard_data', d => {
       setDashboardData({ incoming: d.incomingRequests, outgoing: d.outgoingRequests, accepted: d.acceptedChats, joinedGroups: d.joinedGroups || [] });
       setOnlineMap(d.onlineMap || {});
+      const lm = {};
+      (d.latestMessages || []).forEach(m => {
+        lm[m.room_id] = { text: isImgMsg(m.message_content) ? '🖼 Image' : isGameMsg(m.message_content) ? '🎮 Game' : m.message_content, time: m.created_at, unread: 0 };
+      });
+      setLatestMessages(lm);
     });
     socket.on('joined_groups_update', groups => {
       setDashboardData(p => ({ ...p, joinedGroups: groups }));
@@ -604,12 +614,29 @@ const App = () => {
     socket.on('request_sent', r => setDashboardData(p => ({ ...p, outgoing: [r, ...p.outgoing] })));
     socket.on('previous_messages', h => setMessages(h));
     socket.on('receive_message', m => {
-      setMessages(p => [...p, { ...m, reactions: m.reactions || {} }]);
-      if (m.sender_email !== user.email) {
+      const activeId = activeChatRef.current?.roomId;
+      const isFocused = document.hasFocus();
+
+      // Update currently viewed messages if we are in this room
+      if (activeId === m.room_id) {
+        setMessages(p => [...p, { ...m, reactions: m.reactions || {} }]);
+      }
+
+      // Update latest messages preview
+      setLatestMessages(p => ({
+        ...p,
+        [m.room_id]: {
+          text: isImgMsg(m.message_content) ? '🖼 Image' : isGameMsg(m.message_content) ? '🎮 Game' : m.message_content,
+          time: m.created_at,
+          unread: (p[m.room_id]?.unread || 0) + ((activeId === m.room_id && isFocused) ? 0 : 1)
+        }
+      }));
+
+      if (m.sender_email !== user.email && activeId !== m.room_id) {
         if (!dnd) {
           sounds.receive();
           sendBrowserNotif(`💬 ${m.sender_email.split('@')[0]}`, m.message_content?.startsWith('__') ? 'Sent you something!' : m.message_content);
-          showToast(`${m.sender_email.split('@')[0]}: ${m.message_content?.startsWith('__') ? '📎 Attachment' : m.message_content?.slice(0, 40)}`, 'notif');
+          showToast(`New message from ${m.sender_email.split('@')[0]}`, 'notif');
         }
       }
     });
@@ -645,6 +672,7 @@ const App = () => {
       setReadBy(false);
       setPeerInRoom(false);
       socket.emit('mark_read', { room_id: activeChat.roomId, email: user.email });
+      setLatestMessages(p => ({ ...p, [activeChat.roomId]: { ...p[activeChat.roomId], unread: 0 } }));
     }
   }, [activeChat]);
 
@@ -652,6 +680,7 @@ const App = () => {
   useEffect(() => {
     if (activeChat && document.hasFocus()) {
       socket.emit('mark_read', { room_id: activeChat.roomId, email: user.email });
+      setLatestMessages(p => ({ ...p, [activeChat.roomId]: { ...p[activeChat.roomId], unread: 0 } }));
     }
   }, [messages.length]);
 
@@ -683,6 +712,13 @@ const App = () => {
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
     socket.emit('send_message', { sender_email: user.email, message_content: inputText, room_id: activeChat.roomId, reply_to: replyTo?.id || null });
+
+    // Optimistically update latest messages so user's own sent message reflects instantly
+    setLatestMessages(p => ({
+      ...p,
+      [activeChat.roomId]: { text: inputText, time: new Date().toISOString(), unread: 0 }
+    }));
+
     setInputText(''); setShowEmoji(false); setShowSlang(false); setReplyTo(null); setReadBy(false);
     sounds.send();
     const ta = document.getElementById('chat-textarea');
@@ -868,38 +904,55 @@ const App = () => {
                   <button onClick={() => setShowCreateGroup(true)} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 11 }}>+ Create</button>
                 </div>
                 {dashboardData.joinedGroups?.length === 0 && <div className="channels-empty"><p>No squads yet. Create one! 🤝</p></div>}
-                {dashboardData.joinedGroups?.map(g => (
-                  <div key={g.id} className="channel-item">
-                    <div className="channel-click" onClick={() => { setActiveChat({ roomId: g.id, name: g.name, isGroup: true }); socket.emit('join_room', { email: user.email, room_id: g.id }); sounds.pop(); }}>
-                      <Avatar email={g.name} size={40} variant="gold" />
-                      <div className="channel-info">
-                        <p className="channel-name">{g.name}</p>
-                        <p style={{ fontSize: 11, color: 'var(--text-400)' }}>Squad</p>
+                {[...(dashboardData.joinedGroups || [])].sort((a, b) => (new Date(latestMessages[b.id]?.time || 0)) - (new Date(latestMessages[a.id]?.time || 0))).map(g => {
+                  const lm = latestMessages[g.id];
+                  return (
+                    <div key={g.id} className="channel-item">
+                      <div className="channel-click" onClick={() => { setActiveChat({ roomId: g.id, name: g.name, isGroup: true }); socket.emit('join_room', { email: user.email, room_id: g.id }); sounds.pop(); }}>
+                        <Avatar email={g.name} size={40} variant="gold" />
+                        <div className="channel-info" style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <p className="channel-name">{g.name}</p>
+                            {lm?.time && <span style={{ fontSize: 11, color: 'var(--text-400)', whiteSpace: 'nowrap' }}>{fmtTime(lm.time)}</span>}
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <p style={{ fontSize: 12, color: lm?.unread ? 'var(--text-600)' : 'var(--text-400)', fontWeight: lm?.unread ? 600 : 400, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                              {lm?.text ? lm.text : 'Squad'}
+                            </p>
+                            {lm?.unread > 0 && <span className="unread-badge">{lm.unread}</span>}
+                          </div>
+                        </div>
                       </div>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-300)', marginLeft: 'auto', flexShrink: 0 }}><path d="m9 18 6-6-6-6" /></svg>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Channels */}
               <div className="dash-card">
                 <p className="section-label">Channels {dashboardData.accepted?.length > 0 && `(${dashboardData.accepted.length})`}</p>
                 {dashboardData.accepted?.length === 0 && <div className="channels-empty"><p>No chats yet. Add someone above! 👆</p></div>}
-                {dashboardData.accepted?.map(c => {
+                {[...(dashboardData.accepted || [])].sort((a, b) => (new Date(latestMessages[b.room_id]?.time || 0)) - (new Date(latestMessages[a.room_id]?.time || 0))).map(c => {
                   const peer = c.requester_email === user.email ? c.recipient_email : c.requester_email;
                   const tag = chatTags[c.room_id];
                   const peerInfo = onlineMap[peer] || {};
+                  const lm = latestMessages[c.room_id];
                   return (
                     <div key={c.id} className="channel-item">
                       <div className="channel-click" onClick={() => { setActiveChat({ roomId: c.room_id, peerEmail: peer }); setPeerStatus(peerInfo); socket.emit('join_room', { email: user.email, room_id: c.room_id }); sounds.pop(); }}>
                         <Avatar email={peer} size={40} online={peerInfo.online} status={peerInfo.status} />
-                        <div className="channel-info">
-                          <p className="channel-name">{peer.split('@')[0]}</p>
-                          <StatusLabel online={peerInfo.online} lastSeen={peerInfo.lastSeen} status={peerInfo.status} />
-                          {tag && <span className="channel-tag">{tag}</span>}
+                        <div className="channel-info" style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <p className="channel-name">{peer.split('@')[0]} {tag && <span className="channel-tag" style={{ marginLeft: 6 }}>{tag}</span>}</p>
+                            {lm?.time && <span style={{ fontSize: 11, color: 'var(--text-400)', whiteSpace: 'nowrap' }}>{fmtTime(lm.time)}</span>}
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <p style={{ fontSize: 12, color: lm?.unread ? 'var(--text-600)' : 'var(--text-400)', fontWeight: lm?.unread ? 600 : 400, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                              {lm?.text ? lm.text : (peerInfo.status?.text || (peerInfo.online ? 'Online' : 'Offline'))}
+                            </p>
+                            {lm?.unread > 0 && <span className="unread-badge">{lm.unread}</span>}
+                          </div>
                         </div>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-300)', marginLeft: 'auto', flexShrink: 0 }}><path d="m9 18 6-6-6-6" /></svg>
                       </div>
                       <div className="channel-actions">
                         <TagSelect value={tag || ''} onChange={v => setTag(c.room_id, v)} />
